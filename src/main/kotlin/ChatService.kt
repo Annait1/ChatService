@@ -4,14 +4,14 @@ object ChatService {
     private var nextMessageId = 1
 
     fun sendMessage(senderId: Int, receiverId: Int, text: String): Message {
-        var chat = ChatService.chats.find {
+        var chat = chats.find {
             (it.userId1 == senderId && it.userId2 == receiverId) ||
                     (it.userId1 == receiverId && it.userId2 == senderId)
         }
 
         if (chat == null) {
             chat = Chat(userId1 = senderId, userId2 = receiverId)
-            ChatService.chats.add(chat)
+            chats.add(chat)
         }
 
         val message = Message(
@@ -22,105 +22,106 @@ object ChatService {
             text = text
         )
 
-        ChatService.messages.add(message)
+        messages.add(message)
 
         chat.messages.add(message)
         return message
     }
 
 
-
     fun getChats(): List<Chat> {
-        return ChatService.chats
+        return chats
     }
 
 
     fun getLastMessagesFromChats(): List<String> {
-
-        return ChatService.chats.map { chat ->
-            val lastMessage = chat.messages.lastOrNull()
-            if (lastMessage != null) {
-                "Из чата ${chat.id}: ${lastMessage.text}"
-            } else {
-                "Из чата ${chat.id}: нет сообщений"
-
+        return chats
+            .asSequence()
+            .map { chat ->
+                chat.messages.lastOrNull()?.let {
+                    "Из чата ${chat.id}: ${it.text}"
+                } ?: "Из чата ${chat.id}: нет сообщений"
             }
-        }
+            .toList()
     }
 
 
     fun editMessage(messageId: Int, newText: String): Boolean {
-        val index = ChatService.messages.indexOfFirst { it.id == messageId }
+        val index = messages.indexOfFirst { it.id == messageId }
 
         if (index == -1) return false
 
-        val oldMessage = ChatService.messages[index]
+        val oldMessage = messages[index]
         val updatedMessage = oldMessage.copy(text = newText)
 
-        ChatService.messages[index] = updatedMessage
+        messages[index] = updatedMessage
         return true
     }
 
     fun deleteMessage(messageId: Int): Boolean {
-        val index = ChatService.messages.indexOfFirst { it.id == messageId }
+        val index = messages.indexOfFirst { it.id == messageId }
 
         if (index == -1) return false
 
-        ChatService.messages.removeAt(index)
+        messages.removeAt(index)
         return true
     }
 
     fun getUnreadChatsCount(userId: Int): Int {
-        return ChatService.chats.count { chat ->
-            ChatService.messages.any {
-                it.chatId == chat.id &&
-                        it.receiverId == userId &&
-                        !it.isRead
+        return chats.asSequence()
+            .filter { chat ->
+                messages.any { it.chatId == chat.id && it.receiverId == userId && !it.isRead }
             }
-        }
+            .count()
     }
 
+
     fun getChats(userId: Int): List<Chat> {
-        return ChatService.chats.filter { it.userId1 == userId || it.userId2 == userId }
+        return chats.filter { it.userId1 == userId || it.userId2 == userId }
     }
 
     fun getLastMessages(userId: Int): List<String> {
-        return ChatService.chats.filter { it.userId1 == userId || it.userId2 == userId }
+        return chats
+            .asSequence()
+            .filter { it.userId1 == userId || it.userId2 == userId }
             .map { chat ->
-                val chatMessages = ChatService.messages.filter { message ->
-                    (message.senderId == chat.userId1 && message.receiverId == chat.userId2) ||
-                            (message.senderId == chat.userId2 && message.receiverId == chat.userId1)
-                }
-                chatMessages.lastOrNull()?.text ?: "нет сообщений"
+                val lastMessage = chat.messages
+                    .asSequence()
+                    .filter {
+                        (it.senderId == chat.userId1 && it.receiverId == chat.userId2) ||
+                                (it.senderId == chat.userId2 && it.receiverId == chat.userId1)
+                    }
+                    .lastOrNull()
+                "Из чата ${chat.id}: ${lastMessage?.text ?: "нет сообщений"}"
             }
+            .toList()
     }
 
 
     fun getMessagesFromChat(chatId: Int, userId: Int, count: Int): List<Message> {
-        val chatMessages = ChatService.messages.filter { it.chatId == chatId }.takeLast(count)
+        return messages
+            .asSequence()
+            .filter { it.chatId == chatId }
+            .toList()
+            .takeLast(count)
+            .onEach { if (it.receiverId == userId) it.isRead = true }
 
-        chatMessages.forEach {
-            if (it.receiverId == userId) {
-                it.isRead = true
-            }
-        }
-
-        return chatMessages
     }
 
 
     fun deleteChat(chatId: Int): Boolean {
-        val chat = ChatService.chats.find { it.id == chatId } ?: return false
-        ChatService.chats.remove(chat)
-        ChatService.messages.removeIf { it.chatId == chatId }
+        val chat = chats.find { it.id == chatId } ?: return false
+        chats.remove(chat)
+        messages.removeIf { it.chatId == chatId }
         return true
     }
 
     fun clearAll() {
-        ChatService.chats.clear()
-        ChatService.messages.clear()
-        ChatService.nextMessageId = 1
+        chats.clear()
+        messages.clear()
+        nextMessageId = 1
     }
+
 }
 
 fun main() {
